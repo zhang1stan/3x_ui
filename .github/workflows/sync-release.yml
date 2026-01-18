@@ -6,7 +6,8 @@ on:
   workflow_dispatch:    # 支持手动点击按钮触发
 
 permissions:
-  contents: write      # 必须开启，否则无法发布 Release
+  contents: write      # 允许发布 Release 和推送代码
+  workflows: write     # 【关键新增】允许同步包含工作流文件的标签
 
 jobs:
   sync:
@@ -32,11 +33,11 @@ jobs:
             exit 0
           fi
 
-          # 3. 修复点：先移除可能存在的远程库，再添加
+          # 3. 移除旧的远程库并添加新的
           git remote remove upstream || true
           git remote add upstream https://github.com/$UPSTREAM_REPO.git
           
-          # 4. 强制同步标签
+          # 4. 抓取所有标签并强制同步
           git fetch upstream --tags
           git push origin --tags --force
 
