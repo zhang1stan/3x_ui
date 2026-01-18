@@ -1,0 +1,43 @@
+name: 自动同步原厂 Release
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 每天北京时间 14:00 自动检查
+  workflow_dispatch:    # 支持手动点击按钮触发
+
+permissions:
+  contents: write      # 必须开启，否则无法发布 Release
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查并同步
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_REPO: "MHSanaei/3x-ui" # 原作者仓库
+        run: |
+          LATEST_TAG=$(gh release view --repo $UPSTREAM_REPO --json tagName --template '{{.tagName}}')
+          echo "最新版本: $LATEST_TAG"
+
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            echo "版本已是最新，跳过。"
+            exit 0
+          fi
+
+          git remote add upstream https://github.com/$UPSTREAM_REPO.git
+          git fetch upstream --tags
+          git push origin --tags
+
+          mkdir -p ./downloads
+          gh release download $LATEST_TAG --repo $UPSTREAM_REPO --dir ./downloads
+
+          TITLE=$(gh release view $LATEST_TAG --repo $UPSTREAM_REPO --json name --template '{{.name}}')
+          BODY=$(gh release view $LATEST_TAG --repo $UPSTREAM_REPO --json body --template '{{.body}}')
+
+          gh release create $LATEST_TAG ./downloads/* --title "$TITLE" --notes "$BODY"
