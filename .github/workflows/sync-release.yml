@@ -22,22 +22,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM_REPO: "MHSanaei/3x-ui" # 原作者仓库
         run: |
+          # 1. 获取原仓库最新版本号
           LATEST_TAG=$(gh release view --repo $UPSTREAM_REPO --json tagName --template '{{.tagName}}')
           echo "最新版本: $LATEST_TAG"
 
+          # 2. 如果本地已存在该版本，直接退出
           if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
             echo "版本已是最新，跳过。"
             exit 0
           fi
 
+          # 3. 修复点：先移除可能存在的远程库，再添加
+          git remote remove upstream || true
           git remote add upstream https://github.com/$UPSTREAM_REPO.git
+          
+          # 4. 强制同步标签
           git fetch upstream --tags
-          git push origin --tags
+          git push origin --tags --force
 
+          # 5. 下载所有发行版附件
           mkdir -p ./downloads
           gh release download $LATEST_TAG --repo $UPSTREAM_REPO --dir ./downloads
 
+          # 6. 获取发布内容
           TITLE=$(gh release view $LATEST_TAG --repo $UPSTREAM_REPO --json name --template '{{.name}}')
           BODY=$(gh release view $LATEST_TAG --repo $UPSTREAM_REPO --json body --template '{{.body}}')
 
-          gh release create $LATEST_TAG ./downloads/* --title "$TITLE" --notes "$BODY"
+          # 7. 在你的仓库创建 Release
+          gh release create $LATEST_TAG ./downloads/* --title "$TITLE" --notes "$BODY" || echo "Release 已存在。"
